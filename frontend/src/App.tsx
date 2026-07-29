@@ -13,7 +13,7 @@ export default function App() {
       const data = await getOrders();
       setOrders(data);
     } catch {
-      // Silenciar errores de red durante polling
+      // Silenciar errores durante polling
     } finally {
       setIsLoading(false);
     }
@@ -25,12 +25,17 @@ export default function App() {
     return () => clearInterval(interval);
   }, [fetchOrders]);
 
+  const totalOrders = orders.length;
+  const confirmed = orders.filter(o => o.status === 'Confirmed').length;
+  const pending = orders.filter(o => o.status === 'Pending').length;
+  const rejected = orders.filter(o => o.status === 'Rejected' || o.status.startsWith('Failed')).length;
+
   return (
-    <div className="app-shell">
+    <div>
       <header className="topbar">
         <div className="topbar-left">
           <span className="topbar-title">OrderFlow</span>
-          <span className="topbar-separator">/</span>
+          <span className="topbar-sep">/</span>
           <span className="topbar-section">Panel de operaciones</span>
         </div>
         <div className="sync-indicator">
@@ -40,6 +45,30 @@ export default function App() {
       </header>
 
       <div className="main-content">
+        <div className="page-header">
+          <h2>Gestión de pedidos</h2>
+          <p>Crea pedidos y monitorea su resolución asíncrona en tiempo real</p>
+        </div>
+
+        <div className="stats-row">
+          <div className="stat-card">
+            <div className="stat-label">Total pedidos</div>
+            <div className="stat-value">{totalOrders}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Confirmados</div>
+            <div className="stat-value green">{confirmed}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">En proceso</div>
+            <div className="stat-value amber">{pending}</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Rechazados</div>
+            <div className="stat-value red">{rejected}</div>
+          </div>
+        </div>
+
         <div className="grid-layout">
           <OrderForm onOrderCreated={fetchOrders} />
           <OrderList orders={orders} isLoading={isLoading} />
