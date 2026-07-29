@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { OrderForm } from './components/OrderForm';
 import { OrderList } from './components/OrderList';
 import { getOrders } from './services/api';
-import { RefreshCw } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [orders, setOrders] = useState<any[]>([]);
@@ -13,13 +12,13 @@ export const App: React.FC = () => {
       const data = await getOrders();
       setOrders(data);
     } catch (err) {
-      console.error('Error durante sincronización por polling:', err);
+      console.error('Error durante sincronización del historial:', err);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Polling automático exigido cada 3 segundos exactos
+  // Polling automático exigido cada 3 segundos
   useEffect(() => {
     fetchOrderList();
     const pollingInterval = setInterval(() => {
@@ -31,21 +30,17 @@ export const App: React.FC = () => {
 
   return (
     <div className="app-wrapper">
-      <nav className="top-nav">
-        <div className="nav-brand">
-          <div className="brand-symbol">Q</div>
-          <div className="brand-details">
-            <h1>OrderFlow Console</h1>
-            <p>Senior Distributed System · FastAPI · RabbitMQ · PostgreSQL 16</p>
-          </div>
+      <header className="top-nav">
+        <div>
+          <h1 className="header-title">Panel de Operaciones OrderFlow</h1>
+          <p className="header-subtitle">Gestión de pedidos e inventario con verificación asíncrona</p>
         </div>
         
-        <div className="polling-indicator" title="Intervalo automático activo consultando GET /orders cada 3s">
+        <div className="sync-badge" title="La tabla de pedidos se sincroniza en tiempo real de forma automática cada 3 segundos">
           <span className="status-dot"></span>
-          <span>Live Polling (3s)</span>
-          <RefreshCw size={12} className="icon-spin" style={{ opacity: 0.7, marginLeft: '2px' }} />
+          <span>Sincronización continua activa (3s)</span>
         </div>
-      </nav>
+      </header>
 
       <main className="dashboard-grid">
         <section>
