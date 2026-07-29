@@ -1,162 +1,145 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import type { Product, OrderCreate } from '../types';
 import { getProducts, createOrder } from '../services/api';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
-interface OrderFormProps {
+interface Props {
   onOrderCreated: () => void;
 }
 
-export const OrderForm: React.FC<OrderFormProps> = ({ onOrderCreated }) => {
+export function OrderForm({ onOrderCreated }: Props) {
   const [products, setProducts] = useState<Product[]>([]);
-  const [selectedSku, setSelectedSku] = useState<string>('');
-  const [customerName, setCustomerName] = useState<string>('');
-  const [quantity, setQuantity] = useState<string>('1');
-  
-  // Requisito evaluable: mostrar el error visible en pantalla y no en consola
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-
-  const fetchStock = async () => {
-    try {
-      const data = await getProducts();
-      setProducts(data);
-      if (data.length > 0 && !selectedSku) {
-        setSelectedSku(data[0].sku);
-      }
-    } catch (err) {
-      console.error('Error al cargar productos del catálogo:', err);
-    }
-  };
+  const [sku, setSku] = useState('');
+  const [name, setName] = useState('');
+  const [qty, setQty] = useState('1');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    fetchStock();
+    getProducts().then((data) => {
+      setProducts(data);
+      if (data.length > 0) setSku(data[0].sku);
+    }).catch(() => {});
   }, []);
 
-  const selectedProduct = products.find(p => p.sku === selectedSku);
+  const selected = products.find((p) => p.sku === sku);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setValidationError(null);
-    setSuccessMessage(null);
+    setError(null);
+    setSuccess(null);
 
-    // =========================================================================
-    // VALIDACIÓN DE INTERFAZ EXIGIDA POR EL CLIENTE
-    // =========================================================================
-    const trimmedName = customerName.trim();
-    if (!trimmedName) {
-      setValidationError('Por favor ingresa el nombre del cliente para continuar.');
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setError('Ingresa el nombre del cliente.');
       return;
     }
 
-    const qty = parseInt(quantity, 10);
-    if (isNaN(qty) || qty < 1 || qty > 100) {
-      setValidationError('La cantidad solicitada debe ser un valor entre 1 y 100 unidades.');
+    const quantity = parseInt(qty, 10);
+    if (isNaN(quantity) || quantity < 1 || quantity > 100) {
+      setError('La cantidad debe estar entre 1 y 100.');
       return;
     }
 
-    if (!selectedSku) {
-      setValidationError('Debes seleccionar un producto válido del catálogo.');
+    if (!sku) {
+      setError('Selecciona un producto del catálogo.');
       return;
     }
 
     try {
-      setIsSubmitting(true);
-      const payload: OrderCreate = {
-        customer_name: trimmedName,
-        sku: selectedSku,
-        quantity: qty,
-      };
-
+      setSending(true);
+      const payload: OrderCreate = { customer_name: trimmed, sku, quantity };
       await createOrder(payload);
-      setSuccessMessage('Pedido registrado con éxito. Procesando reserva de stock...');
-      setCustomerName('');
-      setQuantity('1');
+      setSuccess('Pedido registrado. Procesando reserva de inventario...');
+      setName('');
+      setQty('1');
       onOrderCreated();
-      setTimeout(fetchStock, 1500);
+      // Refrescar stock tras breve espera para ver descuento
+      setTimeout(() => {
+        getProducts().then(setProducts).catch(() => {});
+      }, 1500);
     } catch (err: any) {
-      setValidationError(err.message || 'Error en la comunicación con el servidor al crear el pedido.');
+      setError(err.message || 'Error al comunicar con el servidor.');
     } finally {
-      setIsSubmitting(false);
+      setSending(false);
     }
-  };
+  }
 
   return (
-    <div className="panel">
-      <div className="panel-header">
-        <div>
-          <h2 className="panel-title">Registrar Nuevo Pedido</h2>
-          <p className="panel-subtitle">Selecciona el producto y especifica las unidades a solicitar</p>
-        </div>
+    <div className="card">
+      <div className="card-head">
+        <h2>Nuevo pedido</h2>
       </div>
+      <div className="card-body">
+        {error && (
+          <div className="feedback error">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        )}
+        {success && (
+          <div className="feedback success">
+            <CheckCircle2 size={16} />
+            <span>{success}</span>
+          </div>
+        )}
 
-      {validationError && (
-        <div className="alert-box">
-          <AlertCircle size={17} style={{ flexShrink: 0, marginTop: '2px' }} />
-          <span>{validationError}</span>
-        </div>
-      )}
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="field">
+            <label htmlFor="customer">Cliente</label>
+            <input
+              id="customer"
+              type="text"
+              placeholder="Nombre o razón social"
+              className={error && !name.trim() ? 'has-error' : ''}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={sending}
+            />
+          </div>
 
-      {successMessage && (
-        <div className="alert-box success">
-          <CheckCircle2 size={17} style={{ flexShrink: 0, marginTop: '2px' }} />
-          <span>{successMessage}</span>
-        </div>
-      )}
+          <div className="field">
+            <label htmlFor="product">Producto</label>
+            <select
+              id="product"
+              value={sku}
+              onChange={(e) => setSku(e.target.value)}
+              disabled={sending}
+            >
+              {products.map((p) => (
+                <option key={p.sku} value={p.sku}>
+                  {p.name} — ${p.price}
+                </option>
+              ))}
+            </select>
+            {selected && (
+              <div className="hint">
+                <span>{selected.sku}</span>
+                <span><strong>{selected.available_quantity}</strong> disponibles</span>
+              </div>
+            )}
+          </div>
 
-      <form onSubmit={handleSubmit} noValidate>
-        <div className="form-field">
-          <label className="form-label">Nombre del cliente o razón social</label>
-          <input
-            type="text"
-            className={`input-control ${validationError && !customerName.trim() ? 'invalid' : ''}`}
-            placeholder="Ej. Daniel Ramos"
-            value={customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
-            disabled={isSubmitting}
-          />
-        </div>
+          <div className="field">
+            <label htmlFor="quantity">Cantidad</label>
+            <input
+              id="quantity"
+              type="number"
+              min="1"
+              max="100"
+              className={error && (parseInt(qty) < 1 || parseInt(qty) > 100) ? 'has-error' : ''}
+              value={qty}
+              onChange={(e) => setQty(e.target.value)}
+              disabled={sending}
+            />
+          </div>
 
-        <div className="form-field">
-          <label className="form-label">Producto disponible</label>
-          <select
-            className="input-control"
-            value={selectedSku}
-            onChange={(e) => setSelectedSku(e.target.value)}
-            disabled={isSubmitting}
-          >
-            {products.map((p) => (
-              <option key={p.sku} value={p.sku}>
-                {p.name} — ${p.price} USD
-              </option>
-            ))}
-          </select>
-          {selectedProduct && (
-            <div className="stock-info">
-              <span>Código: {selectedProduct.sku}</span>
-              <span>En almacén: <strong>{selectedProduct.available_quantity} disponibles</strong></span>
-            </div>
-          )}
-        </div>
-
-        <div className="form-field">
-          <label className="form-label">Cantidad a solicitar</label>
-          <input
-            type="number"
-            min="1"
-            max="100"
-            className={`input-control ${validationError && (parseInt(quantity) < 1 || parseInt(quantity) > 100) ? 'invalid' : ''}`}
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            disabled={isSubmitting}
-          />
-        </div>
-
-        <button type="submit" className="btn-primary" disabled={isSubmitting}>
-          {isSubmitting ? 'Enviando pedido al sistema...' : 'Registrar Pedido'}
-        </button>
-      </form>
+          <button type="submit" className="btn-submit" disabled={sending}>
+            {sending ? 'Registrando pedido...' : 'Crear pedido'}
+          </button>
+        </form>
+      </div>
     </div>
   );
-};
+}

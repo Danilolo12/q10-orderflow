@@ -1,117 +1,89 @@
-import React from 'react';
 import type { Order } from '../types';
 import { CheckCircle2, Clock, XCircle, AlertTriangle } from 'lucide-react';
 
-interface OrderListProps {
+interface Props {
   orders: Order[];
   isLoading: boolean;
 }
 
-interface StatusConfig {
-  label: string;
-  icon: React.ComponentType<{ size?: number }>;
-  className: string;
-}
-
-// Mapeo en español natural y profesional para la operación
-const STATUS_CONFIG: Record<string, StatusConfig> = {
-  Confirmed: {
-    label: 'Confirmado',
-    icon: CheckCircle2,
-    className: 'status-confirmed',
-  },
-  Pending: {
-    label: 'Reservando en almacén...',
-    icon: Clock,
-    className: 'status-pending',
-  },
-  Rejected: {
-    label: 'Rechazado (Sin stock)',
-    icon: XCircle,
-    className: 'status-rejected',
-  },
-  Default: {
-    label: 'Fallo de comunicación',
-    icon: AlertTriangle,
-    className: 'status-failed',
-  },
+const STATUS_MAP: Record<string, { label: string; icon: typeof CheckCircle2; css: string }> = {
+  Confirmed: { label: 'Confirmado', icon: CheckCircle2, css: 'badge-confirmed' },
+  Pending:   { label: 'En proceso', icon: Clock,        css: 'badge-pending' },
+  Rejected:  { label: 'Rechazado',  icon: XCircle,      css: 'badge-rejected' },
 };
 
-export const OrderList: React.FC<OrderListProps> = ({ orders, isLoading }) => {
-  const getStatusPresentation = (status: string): StatusConfig => {
-    return STATUS_CONFIG[status] || STATUS_CONFIG.Default;
-  };
+const FALLBACK = { label: 'Error', icon: AlertTriangle, css: 'badge-failed' };
 
-  const formatTimestamp = (isoDate: string): string => {
-    try {
-      const date = new Date(isoDate);
-      return date.toLocaleTimeString('es-ES', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    } catch {
-      return isoDate;
-    }
-  };
+function formatTime(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString('es-CO', {
+      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+    });
+  } catch {
+    return iso;
+  }
+}
 
+function shortId(id: string): string {
+  return id.split('-')[0] || id;
+}
+
+export function OrderList({ orders, isLoading }: Props) {
   return (
-    <div className="panel">
-      <div className="panel-header">
-        <div>
-          <h2 className="panel-title">Monitor de Pedidos en Vivo</h2>
-          <p className="panel-subtitle">Registro transaccional y actualización asíncrona de estados</p>
-        </div>
-        <div className="badge-count">
-          {orders.length} {orders.length === 1 ? 'registro' : 'registros'}
-        </div>
+    <div className="card">
+      <div className="card-head">
+        <h2>Historial de pedidos</h2>
+        <span className="count">{orders.length}</span>
       </div>
 
       {isLoading && orders.length === 0 ? (
-        <div className="empty-state-box">
-          <p>Conectando con el servidor y verificando historial...</p>
+        <div className="card-body">
+          <div className="empty-state">
+            <p>Cargando pedidos...</p>
+          </div>
         </div>
       ) : orders.length === 0 ? (
-        <div className="empty-state-box">
-          <p style={{ fontWeight: 500, color: 'var(--text-main)' }}>Aún no hay pedidos en el sistema</p>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)', marginTop: '6px' }}>
-            Completa el formulario de la izquierda para registrar un nuevo pedido y ver la respuesta en tiempo real.
-          </p>
+        <div className="card-body">
+          <div className="empty-state">
+            <p>Sin pedidos registrados</p>
+            <p>Crea un pedido desde el formulario para verlo reflejado aquí en tiempo real.</p>
+          </div>
         </div>
       ) : (
-        <div className="order-list-stack">
-          {orders.map((order) => {
-            const { label, icon: IconComponent, className } = getStatusPresentation(order.status);
-
-            return (
-              <div key={order.id} className="order-card">
-                <div className="order-card-header">
-                  <div>
-                    <div className="customer-name">{order.customer_name}</div>
-                    <div className="order-id">ID: {order.id}</div>
-                  </div>
-                  
-                  <div className={`status-pill ${className}`}>
-                    <IconComponent size={14} />
-                    <span>{label}</span>
-                  </div>
-                </div>
-
-                <div className="order-card-footer">
-                  <div className="metric-box">
-                    <span className="metric-label">Producto</span>
-                    <span className="metric-value" style={{ fontFamily: 'var(--font-mono)' }}>{order.sku}</span>
-                  </div>
-                  <div className="metric-box">
-                    <span className="metric-label">Unidades</span>
-                    <span className="metric-value">{order.quantity}</span>
-                  </div>
-                  <div className="metric-box">
-                    <span className="metric-label">Última actualización</span>
-                    <span className="metric-value">{formatTimestamp(order.updated_at || order.created_at)}</span>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <table className="orders-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Cliente</th>
+              <th>Producto</th>
+              <th style={{ textAlign: 'center' }}>Cant.</th>
+              <th>Estado</th>
+              <th>Fecha</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((order) => {
+              const st = STATUS_MAP[order.status] || FALLBACK;
+              const Icon = st.icon;
+              return (
+                <tr key={order.id}>
+                  <td className="col-id">{shortId(order.id)}</td>
+                  <td className="col-customer">{order.customer_name}</td>
+                  <td>{order.sku}</td>
+                  <td className="col-qty">{order.quantity}</td>
+                  <td>
+                    <span className={`badge ${st.css}`}>
+                      <Icon size={13} />
+                      {st.label}
+                    </span>
+                  </td>
+                  <td>{formatTime(order.updated_at || order.created_at)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       )}
     </div>
   );
-};
+}
