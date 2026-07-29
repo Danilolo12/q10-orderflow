@@ -2,7 +2,6 @@ import os
 import json
 import logging
 import pika
-from pika.exceptions import AMQPError
 
 logger = logging.getLogger(__name__)
 
@@ -12,8 +11,9 @@ STATUS_QUEUE = os.getenv("RABBITMQ_ORDER_STATUS_QUEUE", "order_status_queue")
 
 def publish_stock_response(event_id: str, order_id: str, status: str, reason: str = "", channel=None):
     """
-    Publica el resultado de la reserva (StockReserved o StockRejected) hacia Orders API.
-    Reutiliza el canal del consumidor si está disponible para máxima velocidad.
+    Publica el resultado de la reserva (Confirmed o Rejected) hacia Orders API.
+    SIEMPRE abre una conexión nueva e independiente para evitar conflictos
+    con el canal consumidor que está en modo básico de lectura.
     """
     payload = {
         "eventId": event_id,
@@ -21,20 +21,19 @@ def publish_stock_response(event_id: str, order_id: str, status: str, reason: st
         "status": status,
         "reason": reason
     }
-    
-    should_close_conn = False
-    if channel is None or not channel.is_open:
-        params = pika.URLParameters(RABBITMQ_URL)
-        connection = pika.BlockingConnection(params)
-        channel = connection.channel()
-        should_close_conn = True
 
+    # Conexión dedicada para publicación — nunca reutilizar el canal consumidor
     try:
-        channel.exchange_declare(exchange=EXCHANGE_NAME, exchange_type='direct', durable=True)
-        channel.queue_declare(queue=STATUS_QUEUE, durable=True)
-        channel.queue_bind(exchange=EXCHANGE_NAME, queue=STATUS_QUEUE, routing_key="order.status")
+        params = pika.URLParameters(RABBITMQ_URL)
+        params.socket_timeout = 5.0
+        connection = pika.BlockingConnection(params)
+        pub_channel = connection.channel()
 
-        channel.basic_publish(
+        pub_channel.exchange_declare(exchange=EXCHANGE_NAME, exchange_type='direct', durable=True)
+        pub_channel.queue_declare(queue=STATUS_QUEUE, durable=True)
+        pub_channel.queue_bind(exchange=EXCHANGE_NAME, queue=STATUS_QUEUE, routing_key="order.status")
+
+        pub_channel.basic_publish(
             exchange=EXCHANGE_NAME,
             routing_key="order.status",
             body=json.dumps(payload),
@@ -43,7 +42,7 @@ def publish_stock_response(event_id: str, order_id: str, status: str, reason: st
                 content_type='application/json'
             )
         )
-        logger.info(f"[Worker Publisher] Publicado evento hacia orders: {status} para Pedido {order_id}")
-    finally:
-        if should_close_conn:
-            channel.connection.close()
+        logger.info(f"[Publisher] Respuesta enviada -> {status} para Pedido {order_id}")
+        connection.close()
+    except Exception as e:
+        logger.error(f"[Publisher] Error al publicar respuesta de stock: {e}")
