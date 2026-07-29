@@ -1,0 +1,62 @@
+[
+  {
+    "sku": "LAPTOP-PRO-16",
+    "name": "MacBook Pro 16\" M4 Max",
+    "available_quantity": 12,
+    "price": 3499.00
+  },
+  {
+    "sku": "PHONE-ULTRA-24",
+    "name": "Samsung Galaxy S24 Ultra",
+    "available_quantity": 20,
+    "price": 1299.00
+  },
+  {
+    "sku": "HEADPHONES-ANC",
+    "name": "Sony WH-1000XM5",
+    "available_quantity": 30,
+    "price": 349.00
+  },
+  {
+    "sku": "KEYBOARD-MECH",
+    "name": "Keychron Q1 Pro Mechanical",
+    "available_quantity": 40,
+    "price": 199.00
+  },
+  {
+    "sku": "MONITOR-4K-32",
+    "name": "LG UltraFine 32\" 4K",
+    "available_quantity": 8,
+    "price": 699.00
+  },
+  {
+    "sku": "TABLET-IPAD-13",
+    "name": "iPad Pro 13\" M4",
+    "available_quantity": 15,
+    "price": 1299.00
+  },
+  {
+    "sku": "MOUSE-MX-3S",
+    "name": "Logitech MX Master 3S",
+    "available_quantity": 50,
+    "price": 99.00
+  },
+  {
+    "sku": "WEBCAM-4K-PRO",
+    "name": "Elgato Facecam Pro 4K",
+    "available_quantity": 18,
+    "price": 299.00
+  },
+  {
+    "sku": "SSD-NVME-2TB",
+    "name": "Samsung 990 Pro NVMe 2TB",
+    "available_quantity": 35,
+    "price": 189.00
+  },
+  {
+    "sku": "CHAIR-ERGO-HM",
+    "name": "Herman Miller Aeron",
+    "available_quantity": 5,
+    "price": 1395.00
+  }
+]

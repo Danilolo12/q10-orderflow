@@ -61,6 +61,8 @@ services:
       - PYTHONUNBUFFERED=1
     ports:
       - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./seed-data:/app/seed-data:ro
     depends_on:
       postgres:
         condition: service_healthy

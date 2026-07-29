@@ -1,6 +1,7 @@
 -- ==============================================================================
--- Q10 ORDERFLOW - SCRIPT DE INICIALIZACIÓN DE BASE DE DATOS Y SEEDING
--- Se ejecuta automáticamente al iniciar el contenedor de PostgreSQL
+-- Q10 ORDERFLOW - ESQUEMA DE BASE DE DATOS
+-- Se ejecuta automáticamente al iniciar el contenedor de PostgreSQL.
+-- Los datos de productos se cargan desde seed-data/products.json al arrancar la API.
 -- ==============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -14,7 +15,7 @@ CREATE TABLE IF NOT EXISTS stock (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Tabla de Pedidos / Orders
+-- 2. Tabla de Pedidos
 CREATE TABLE IF NOT EXISTS orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     customer_name VARCHAR(255) NOT NULL,
@@ -25,27 +26,13 @@ CREATE TABLE IF NOT EXISTS orders (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. Tabla de Idempotencia para el Worker de Inventario
--- Evita procesamiento duplicado de eventos de RabbitMQ por re-intentos o redelivery
+-- 3. Tabla de Idempotencia para el Inventory Worker
 CREATE TABLE IF NOT EXISTS processed_events (
     event_id UUID PRIMARY KEY,
     event_type VARCHAR(100) NOT NULL DEFAULT 'OrderCreated',
     processed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Índices de consulta para optimizar búsquedas por estado o por cliente
+-- Índices de consulta
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at DESC);
-
--- ==============================================================================
--- SEEDING DE INVENTARIO INICIAL (Al menos 3 productos para la prueba)
--- ==============================================================================
-INSERT INTO stock (sku, name, available_quantity, price) VALUES 
-('LAPTOP-PRO-16', 'MacBook Pro 16" M4 Max Space Black', 10, 3499.00),
-('PHONE-ULTRA-24', 'Samsung Galaxy S24 Ultra Titanium Black', 15, 1299.00),
-('HEADPHONES-ANC', 'Sony WH-1000XM5 Wireless Headphones', 5, 399.00),
-('KEYBOARD-MECH', 'Keychron Q1 Pro Wireless Mechanical', 25, 199.00)
-ON CONFLICT (sku) DO UPDATE SET 
-    available_quantity = EXCLUDED.available_quantity,
-    name = EXCLUDED.name,
-    price = EXCLUDED.price;

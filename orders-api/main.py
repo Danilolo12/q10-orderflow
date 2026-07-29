@@ -9,13 +9,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
-from database import get_db, engine, Base
+from database import get_db, engine, Base, SessionLocal
 from models import Order, Stock
 from schemas import OrderCreate, OrderResponse, ProductResponse
 from rabbit_publisher import publish_order_created_event
 from rabbit_consumer import status_consumer
+from seed import seed_products
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - [OrdersAPI-Fase3] - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - [OrdersAPI] - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Asegurar tablas en la base de datos de persistencia
@@ -23,7 +24,11 @@ Base.metadata.create_all(bind=engine)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # STARTUP: Arrancar hilo secundario para escuchar eventos StockReserved / StockRejected desde RabbitMQ
+    # STARTUP: Cargar catálogo de productos desde seed-data/products.json
+    db = SessionLocal()
+    seed_products(db)
+    db.close()
+    # Arrancar hilo secundario para escuchar eventos StockReserved / StockRejected desde RabbitMQ
     logger.info("[Lifespan] Conectando consumidor secundario a RabbitMQ para transiciones de estado...")
     status_consumer.start()
     yield
