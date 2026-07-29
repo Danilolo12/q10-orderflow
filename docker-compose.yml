@@ -1,0 +1,117 @@
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Base de datos Principal (PostgreSQL)
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: q10-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - q10_net
+
+  # ----------------------------------------------------------------------------
+  # 2. Broker de Mensajería (RabbitMQ)
+  # ----------------------------------------------------------------------------
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: q10-rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    ports:
+      - "5672:5672"   # AMQP protocol port
+      - "15672:15672" # Management UI Port
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - q10_net
+
+  # ----------------------------------------------------------------------------
+  # 3. Servicio 1: Orders API (FastAPI)
+  # ----------------------------------------------------------------------------
+  orders-api:
+    build:
+      context: ./orders-api
+      dockerfile: Dockerfile
+    container_name: q10-orders-api
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - q10_net
+
+  # ----------------------------------------------------------------------------
+  # 4. Servicio 2: Inventory Worker (Python / Consumer Loop)
+  # ----------------------------------------------------------------------------
+  inventory-worker:
+    build:
+      context: ./inventory-worker
+      dockerfile: Dockerfile
+    container_name: q10-inventory-worker
+    restart: always
+    env_file:
+      - .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - q10_net
+
+  # ----------------------------------------------------------------------------
+  # 5. Frontend: React + TypeScript (Vite Server)
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: q10-frontend
+    restart: always
+    environment:
+      - VITE_API_URL=http://localhost:${API_PORT:-8000}
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    depends_on:
+      - orders-api
+    networks:
+      - q10_net
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+
+networks:
+  q10_net:
+    driver: bridge
