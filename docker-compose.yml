@@ -110,6 +110,23 @@ services:
     networks:
       - q10_net
 
+  # ----------------------------------------------------------------------------
+  # 6. DB Viewer: Interfaz Web para PostgreSQL (Pgweb)
+  # ----------------------------------------------------------------------------
+  db-viewer:
+    image: sosedoff/pgweb:latest
+    container_name: q10-db-viewer
+    restart: always
+    environment:
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - q10_net
+
 volumes:
   postgres_data:
   rabbitmq_data:
