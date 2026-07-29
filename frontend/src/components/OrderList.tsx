@@ -50,39 +50,41 @@ export function OrderList({ orders, isLoading }: Props) {
           </div>
         </div>
       ) : (
-        <table className="orders-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Cliente</th>
-              <th>Producto</th>
-              <th style={{ textAlign: 'center' }}>Cant.</th>
-              <th>Estado</th>
-              <th>Fecha</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((order) => {
-              const st = STATUS_MAP[order.status] || FALLBACK;
-              const Icon = st.icon;
-              return (
-                <tr key={order.id}>
-                  <td className="col-id">{shortId(order.id)}</td>
-                  <td className="col-customer">{order.customer_name}</td>
-                  <td>{order.sku}</td>
-                  <td className="col-qty">{order.quantity}</td>
-                  <td>
-                    <span className={`badge ${st.css}`}>
-                      <Icon size={13} />
-                      {st.label}
-                    </span>
-                  </td>
-                  <td>{formatTime(order.updated_at || order.created_at)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="table-wrapper">
+          <table className="orders-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Cliente</th>
+                <th>Producto</th>
+                <th style={{ textAlign: 'center' }}>Cant.</th>
+                <th>Estado</th>
+                <th>Fecha</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((order) => {
+                const st = STATUS_MAP[order.status] || FALLBACK;
+                const Icon = st.icon;
+                return (
+                  <tr key={order.id}>
+                    <td className="col-id">{shortId(order.id)}</td>
+                    <td className="col-customer">{order.customer_name}</td>
+                    <td>{order.sku}</td>
+                    <td className="col-qty">{order.quantity}</td>
+                    <td>
+                      <span className={`badge ${st.css}`}>
+                        <Icon size={12} />
+                        {st.label}
+                      </span>
+                    </td>
+                    <td>{formatTime(order.updated_at || order.created_at)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
