@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { OrderForm } from './components/OrderForm';
 import { OrderList } from './components/OrderList';
 import { getOrders } from './services/api';
+import { RefreshCw } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [orders, setOrders] = useState<any[]>([]);
@@ -12,15 +13,13 @@ export const App: React.FC = () => {
       const data = await getOrders();
       setOrders(data);
     } catch (err) {
-      console.error('Error durante polling de pedidos:', err);
+      console.error('Error durante sincronización por polling:', err);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // ===========================================================================
-  // POLLING AUTOMÁTICO EXIGIDO POR LA PRUEBA (Cada 3.5 segundos)
-  // ===========================================================================
+  // Polling automático exigido cada 3 segundos exactos
   useEffect(() => {
     fetchOrderList();
     const pollingInterval = setInterval(() => {
@@ -31,23 +30,24 @@ export const App: React.FC = () => {
   }, [fetchOrderList]);
 
   return (
-    <div className="app-container">
-      <header className="header">
-        <div className="logo-section">
-          <div className="logo-icon">Q</div>
-          <div className="logo-text">
-            <h1>Q10 OrderFlow System</h1>
-            <p>Senior Event-Driven Architecture · FastAPI · RabbitMQ · PostgreSQL</p>
+    <div className="app-wrapper">
+      <nav className="top-nav">
+        <div className="nav-brand">
+          <div className="brand-symbol">Q</div>
+          <div className="brand-details">
+            <h1>OrderFlow Console</h1>
+            <p>Senior Distributed System · FastAPI · RabbitMQ · PostgreSQL 16</p>
           </div>
         </div>
         
-        <div className="polling-badge" title="Sincronización en segundo plano activa cada 3 segundos">
-          <div className="pulse-circle"></div>
-          <span>Live Polling Active (3s)</span>
+        <div className="polling-indicator" title="Intervalo automático activo consultando GET /orders cada 3s">
+          <span className="status-dot"></span>
+          <span>Live Polling (3s)</span>
+          <RefreshCw size={12} className="icon-spin" style={{ opacity: 0.7, marginLeft: '2px' }} />
         </div>
-      </header>
+      </nav>
 
-      <main className="main-grid">
+      <main className="dashboard-grid">
         <section>
           <OrderForm onOrderCreated={fetchOrderList} />
         </section>

@@ -1,0 +1,194 @@
+{
+  "info": {
+    "_postman_id": "c0a1f2e3-4d56-789a-bc01-e23456789012",
+    "name": "Q10 OrderFlow - Architecture & Resilience Suite",
+    "description": "Colección completa de pruebas transaccionales, consultas de almacén y resiliencia para el ecosistema microservicios Q10 OrderFlow (FastAPI + RabbitMQ + PostgreSQL).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Sistema & Catálogo de Inventario",
+      "item": [
+        {
+          "name": "Healthcheck Orders API",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/health",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["health"]
+            },
+            "description": "Verifica que el servicio FastAPI esté levantado y escuchando colas del broker."
+          }
+        },
+        {
+          "name": "Consultar Catálogo y Saldo en Vivo",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/products",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["products"]
+            },
+            "description": "Retorna los 4 productos cargados inicialmente (seed) y demuestra en tiempo real el saldo remanente tras las compras."
+          }
+        },
+        {
+          "name": "Listado General de Pedidos (Polling target)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/orders",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["orders"]
+            },
+            "description": "Devuelve el historial cronológico de pedidos en PostgreSQL con el estado final (Pending, Confirmed, Rejected)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Flujos Exitosos (Event-Driven Confirmations)",
+      "item": [
+        {
+          "name": "Crear Pedido - 2 MacBooks Pro",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_name\": \"Daniel Ramos (Prueba Postman Exito)\",\n  \"sku\": \"LAPTOP-PRO-16\",\n  \"quantity\": 2\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/orders",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["orders"]
+            },
+            "description": "Al crearse retorna código 201 Created y estado 'Pending'. En el segundo siguiente el Inventory Worker en RabbitMQ rebajará 2 MacBooks en PostgreSQL y cambiará el estado a 'Confirmed'."
+          }
+        },
+        {
+          "name": "Crear Pedido - 1 Smartphone Samsung S24",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_name\": \"Empresa Q10 Tech Lead\",\n  \"sku\": \"PHONE-ULTRA-24\",\n  \"quantity\": 1\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/orders",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["orders"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Pruebas de Rechazo y Resiliencia (Casos Borde)",
+      "item": [
+        {
+          "name": "Rechazo Asíncrono - Saldo Insuficiente",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_name\": \"Comprador Masivo (Excedente)\",\n  \"sku\": \"HEADPHONES-ANC\",\n  \"quantity\": 80\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/orders",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["orders"]
+            },
+            "description": "El inventario solo tiene 5 audífonos. El pedido se registra en Pending pero el Worker enviará StockRejected al broker de inmediato y cambiará su estado en BD a 'Rejected', manteniendo intactos los 5 audífonos reales."
+          }
+        },
+        {
+          "name": "Error 422 - Validación Pydantic (Cantidad Inválida > 100)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_name\": \"Intruso sin Contrato\",\n  \"sku\": \"LAPTOP-PRO-16\",\n  \"quantity\": 500\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/orders",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["orders"]
+            },
+            "description": "Retorna error HTTP 422 Unprocessable Entity. Atrapado en la capa HTTP sin consumir recursos en la base de datos ni colas."
+          }
+        },
+        {
+          "name": "Error 422 - Validación Pydantic (Cliente Vacío)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_name\": \"     \",\n  \"sku\": \"LAPTOP-PRO-16\",\n  \"quantity\": 1\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/orders",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["orders"]
+            }
+          }
+        },
+        {
+          "name": "Error 404 - SKU No Existente en el Seed",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_name\": \"Daniel Ramos\",\n  \"sku\": \"SKU-INEXISTENTE-123\",\n  \"quantity\": 1\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/orders",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8000",
+              "path": ["orders"]
+            },
+            "description": "El controlador verifica la tabla stock antes de actuar y retorna HTTP 404 informando que ese SKU no existe."
+          }
+        }
+      ]
+    }
+  ]
+}
