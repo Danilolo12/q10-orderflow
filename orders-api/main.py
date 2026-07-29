@@ -1,6 +1,9 @@
 import uuid
 import logging
+from datetime import datetime, timezone
 from typing import List
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -9,20 +12,32 @@ from sqlalchemy import desc
 from database import get_db, engine, Base
 from models import Order, Stock
 from schemas import OrderCreate, OrderResponse, ProductResponse
+from rabbit_publisher import publish_order_created_event
+from rabbit_consumer import status_consumer
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - [OrdersAPI-Fase2] - %(levelname)s - %(message)s")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - [OrdersAPI-Fase3] - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-# Aseguramos que los metadatos relacionales estén empatados en PostgreSQL
+# Asegurar tablas en la base de datos de persistencia
 Base.metadata.create_all(bind=engine)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # STARTUP: Arrancar hilo secundario para escuchar eventos StockReserved / StockRejected desde RabbitMQ
+    logger.info("[Lifespan] Conectando consumidor secundario a RabbitMQ para transiciones de estado...")
+    status_consumer.start()
+    yield
+    # SHUTDOWN: Detener el hilo limpiamente tras apagar el servicio
+    logger.info("[Lifespan] Apagando conector de colas de Orders API...")
+    status_consumer.stop()
+
 app = FastAPI(
-    title="Q10 OrderFlow - Orders API (Fase 2)",
-    description="Microservicio REST de Pedidos con validación Pydantic estricta y persistencia en PostgreSQL (SQLAlchemy)",
-    version="2.0.0"
+    title="Q10 OrderFlow - Orders API (Fase 3 Core)",
+    description="Microservicio REST de Pedidos integrado de punta a punta con RabbitMQ y PostgreSQL",
+    version="3.0.0",
+    lifespan=lifespan
 )
 
-# Middleware para que nuestro futuro Frontend React (Puerto 5173) no tenga restricciones CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,45 +46,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/health", summary="Healthcheck del contenedor para Docker Compose")
+@app.get("/health", summary="Healthcheck del servicio Orders API")
 def health_check():
-    return {"status": "UP", "service": "orders-api", "phase": "2 - Database & Validations Ready"}
+    return {"status": "UP", "service": "orders-api", "phase": "3 - RabbitMQ Messaging Core Active"}
 
-@app.get("/products", response_model=List[ProductResponse], summary="Listado auxiliar de productos para el Frontend")
+@app.get("/products", response_model=List[ProductResponse], summary="Consultar inventario en PostgreSQL")
 def list_products(db: Session = Depends(get_db)):
-    """
-    Retorna el catálogo y su stock en PostgreSQL (los 4 productos seedeados por init-db.sql)
-    para alimentar el menú desplegable en React en la Fase 4.
-    """
     return db.query(Stock).order_by(Stock.name.asc()).all()
 
 @app.post(
     "/orders",
     response_model=OrderResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Crear nuevo pedido con validación de SKU y estado 'Pending'"
+    summary="Crear pedido y emitir evento OrderCreated a RabbitMQ"
 )
 def create_order(order_in: OrderCreate, db: Session = Depends(get_db)):
     """
-    LÓGICA SENIOR FASE 2 (Validación + Persistencia sin Broker aún):
-    1. Pydantic ya validó que customer_name (clienteNombre) no sea una cadena vacía ni espacios.
-    2. Pydantic ya garantizó matemáticamente que quantity sea entre 1 y 100.
-    3. Consultamos la tabla 'stock' en PostgreSQL para verificar que el SKU provisto exista
-       realmente entre los productos iniciales de seed.
-    4. Grabamos en base de datos con estado inalterable 'Pending' y retornamos el registro de inmediato.
-    
-    * Nota arquitectónica: En la Fase 3 integraremos aquí la emisión asincrónica a RabbitMQ.
+    LÓGICA SENIOR FASE 3 (REST + Mensajería Asíncrona Resiliente):
+    1. Valida el contrato Pydantic (cliente no vacío, cantidad entre 1 y 100).
+    2. Comprueba existencia real del SKU en catálogo de stock.
+    3. Persiste inicialmente el pedido en PostgreSQL con estado 'Pending'.
+    4. Genera un eventId UUID único y publica un evento 'OrderCreated' hacia RabbitMQ.
+    5. MANEJO DE FALLOS CRITICO: Si el broker RabbitMQ no responde al intentar publicar,
+       se captura la excepción, se marca el pedido como 'Failed - Broker Offline' en BD,
+       y se informa del error al usuario mediante un código HTTP 500 explícito.
     """
-    # Verificación estricta de que el SKU existe realmente en el almacén (seed inicial)
+    # 1. Verificar existencia obligatoria del producto
     product = db.query(Stock).filter(Stock.sku == order_in.sku).first()
     if not product:
-        logger.warning(f"Intento de crear pedido con SKU inasumible: {order_in.sku}")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Error de catálogo: El producto con SKU '{order_in.sku}' no existe en el seed inicial."
+            detail=f"El SKU '{order_in.sku}' no figura en nuestro catálogo oficial del sistema."
         )
 
-    # Creación y persistencia transaccional del pedido
+    # 2. Registrar de forma transaccional el pedido en estado Pending
     new_order = Order(
         id=uuid.uuid4(),
         customer_name=order_in.customer_name,
@@ -77,34 +87,45 @@ def create_order(order_in: OrderCreate, db: Session = Depends(get_db)):
         quantity=order_in.quantity,
         status="Pending"
     )
-    
+    db.add(new_order)
+    db.commit()
+    db.refresh(new_order)
+
+    # 3. Empujar la notificación asíncrona hacia RabbitMQ con ID de evento inmutable
+    event_id = str(uuid.uuid4())
+    event_payload = {
+        "eventId": event_id,
+        "eventType": "OrderCreated",
+        "orderId": str(new_order.id),
+        "sku": new_order.sku,
+        "quantity": new_order.quantity,
+        "customerName": new_order.customer_name,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+    # 4. Fallback y tolerancia a caídas en RabbitMQ (Exigido en enunciado de evaluación)
     try:
-        db.add(new_order)
+        publish_order_created_event(event_payload)
+    except Exception as e:
+        logger.error(f"[Broker Fallout] Error al contactar a RabbitMQ durante el pedido {new_order.id}. Revocando.")
+        new_order.status = "Failed - Broker Offline"
         db.commit()
         db.refresh(new_order)
-        logger.info(f"[Fase 2 Exito] Pedido encolado localmente en DB (Pending). ID: {new_order.id}")
-        # TODO [Fase 3]: Aquí enviaremos el evento OrderCreated hacia las colas de RabbitMQ.
-    except Exception as ex:
-        db.rollback()
-        logger.error(f"Fallo grave en inserción SQLAlchemy: {ex}")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Fallo de transacción SQL en PostgreSQL")
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error crítico en el broker de mensajería (RabbitMQ Inalcanzable). Pedido cancelado transaccionado a fallido por seguridad."
+        )
 
     return new_order
 
-@app.get("/orders", response_model=List[OrderResponse], summary="Consultar historial general de pedidos")
+@app.get("/orders", response_model=List[OrderResponse], summary="Historial general de pedidos para Live Polling")
 def get_orders(db: Session = Depends(get_db)):
-    """
-    Lista todos los pedidos registrados en PostgreSQL ordenados cronológicamente
-    de más recientes a antiguos (esencial para hacer polling fluido desde React en la Fase 4).
-    """
     return db.query(Order).order_by(desc(Order.created_at)).all()
 
-@app.get("/orders/{order_id}", response_model=OrderResponse, summary="Consultar detalle de un pedido por su UUID")
+@app.get("/orders/{order_id}", response_model=OrderResponse, summary="Detalle individual de pedido")
 def get_order(order_id: uuid.UUID, db: Session = Depends(get_db)):
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"No existe ningún registro para el ID de pedido {order_id}"
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No se encontró un pedido registrado para el UUID {order_id}")
     return order
