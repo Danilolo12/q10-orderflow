@@ -1,10 +1,10 @@
-# Q10 OrderFlow - Senior Event-Driven Microservices Architecture 🚀
+# Q10 OrderFlow - Senior Event-Driven Microservices Architecture 
 
 Una arquitectura orientada a eventos de nivel Senior construida con **FastAPI**, **React + TypeScript (Vite)**, **RabbitMQ** y **PostgreSQL**. Diseñada para garantizar alta consistencia transaccional, resiliencia contra caídas del broker o de workers, e **idempotencia obligatoria** con bloqueo pesimista en las operaciones de almacén.
 
 ---
 
-## 1. Instrucciones de Ejecución Rápida (Docker Compose) 🐳
+## 1. Instrucciones de Ejecución Rápida (Docker Compose) 
 
 El proyecto se estructura bajo un esquema **Monorepo**, facilitando el despliegue de toda la topología y dependencias mediante un único comando sin requerir configuraciones locales manuales.
 
@@ -24,7 +24,7 @@ El orquestador levantará en orden gracias a los `healthcheck`:
 
 ---
 
-### Cómo Ejecutar las Suites de Tests Automatizados 🧪
+### Cómo Ejecutar las Suites de Tests Automatizados 
 
 Las pruebas de integración y unitarias (que verifican la idempotencia transaccional y los fallos en cascada) están escritas en `pytest` y utilizan bases de datos en memoria para máxima velocidad.
 
@@ -54,7 +54,7 @@ Toda decisión de arquitectura involucra compromisos de diseño según el contex
 
 ---
 
-## 3. Manejo Resiliente de Fallos Documentado 🛡️
+## 3. Manejo Resiliente de Fallos Documentado 
 
 El sistema fue diseñado preventivamente para tolerar caídas abruptas en cualquiera de sus nodos:
 
@@ -70,7 +70,7 @@ El sistema fue diseñado preventivamente para tolerar caídas abruptas en cualqu
 
 ---
 
-## 4. Garantía de Idempotencia y Concurrencia 🔒
+## 4. Garantía de Idempotencia y Concurrencia 
 
 En redes distribuidas, los mensajes de RabbitMQ pueden ser entregados dos veces ante intermitencias (At-least-once delivery).
 Para prevenir que un producto descuente doble stock de forma fraudulenta o accidental:
@@ -80,7 +80,7 @@ Para prevenir que un producto descuente doble stock de forma fraudulenta o accid
 
 ---
 
-## 5. Sección: "Qué Haría Distinto Con Más Tiempo" 🕰️
+## 5. Sección: "Qué Haría Distinto Con Más Tiempo" 
 
 Para escalar este sistema hacia un entorno Enterprise en producción masiva (ej. Black Friday en e-commerce), implementaría las siguientes mejoras estratégicas:
 
