@@ -1,5 +1,6 @@
 import os
 import json
+import uuid
 import time
 import logging
 import threading
@@ -51,7 +52,7 @@ class RabbitMQStatusConsumer:
 
             db: Session = SessionLocal()
             try:
-                order = db.query(Order).filter(Order.id == order_id).first()
+                order = db.query(Order).filter(Order.id == uuid.UUID(str(order_id))).first()
                 if order:
                     old_status = order.status
                     order.status = status

@@ -34,10 +34,12 @@ def setup_db():
     Base.metadata.drop_all(bind=engine)
 
 @patch("main.publish_stock_response")
-def test_process_order_success(mock_publish):
+def test_01_process_order_stock_reservation_success(mock_publish):
     """
-    Verifica que al recibir un pedido válido con saldo suficiente, se descuenta el stock
-    y se emite una confirmación (Confirmed).
+    1. DESCUENTO Y RESERVA DE STOCK EXITOSA (Pending -> Confirmed):
+    Verifica que al recibir un evento con un pedido válido y stock disponible, el worker
+    descuenta la cantidad exacta en la BD de forma transaccional, registra el evento en
+    la tabla de idempotencia y publica la respuesta 'Confirmed' hacia la Orders API.
     """
     ch = MagicMock()
     method = MagicMock(delivery_tag=1)
@@ -72,11 +74,13 @@ def test_process_order_success(mock_publish):
     assert mock_publish.call_args[1]["status"] == "Confirmed"
 
 @patch("main.publish_stock_response")
-def test_process_order_idempotency_duplicate_event(mock_publish):
+def test_02_idempotency_duplicate_event_no_double_subtraction(mock_publish):
     """
-    PRUEBA CRÍTICA DE IDEMPOTENCIA:
-    Si el mismo evento llega dos veces seguidas, la segunda vez debe ignorarse en silencio
-    y NO descontar stock nuevamente.
+    2. PRUEBA CRÍTICA DE IDEMPOTENCIA CON BLOQUEO Y LLAVE DUPLICADA:
+    Simula la llegada duplicada del mismo evento (at-least-once delivery en RabbitMQ).
+    Verifica que en la segunda entrega, al intentar registrar el mismo eventId (UUID) en
+    la tabla 'processed_events', se captura la excepción de integridad (llave duplicada),
+    el descuento de stock se ignora en silencio (el stock permanece intacto) y se retorna ACK.
     """
     ch = MagicMock()
     method = MagicMock(delivery_tag=2)
@@ -111,10 +115,12 @@ def test_process_order_idempotency_duplicate_event(mock_publish):
     mock_publish.assert_not_called()
 
 @patch("main.publish_stock_response")
-def test_process_order_insufficient_stock(mock_publish):
+def test_03_process_order_insufficient_stock_rejected(mock_publish):
     """
-    Verifica que al solicitar más cantidad que el disponible (ej. 15 cuando hay 10),
-    el stock no cambia y se responde StockRejected.
+    3. RECHAZO POR STOCK INSUFICIENTE (Pending -> Rejected):
+    Verifica que al solicitar una cantidad superior al inventario disponible, el saldo
+    no se modifica ni resulta negativo, y el worker publica un evento 'Rejected' detallando
+    la razón del rechazo hacia la Orders API.
     """
     ch = MagicMock()
     method = MagicMock(delivery_tag=3)
