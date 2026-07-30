@@ -1,10 +1,10 @@
-# Q10 OrderFlow - Senior Event-Driven Microservices Architecture 🚀
+# Q10 OrderFlow - Senior Event-Driven Microservices Architecture
 
 Una arquitectura orientada a eventos (*Event-Driven Architecture*) de nivel Senior construida con **FastAPI**, **React + TypeScript (Vite)**, **RabbitMQ** y **PostgreSQL**. Diseñada para garantizar alta consistencia transaccional, resiliencia contra caídas del broker o de workers, e **idempotencia estricta** con bloqueo pesimista en las operaciones de almacén e inventario.
 
 ---
 
-## 1. Instrucciones de Ejecución Rápida (Out of the Box) 📦
+## 1. Instrucciones de Ejecución Rápida (Out of the Box)
 
 El proyecto se estructura bajo un esquema **Monorepo**, facilitando el despliegue de toda la topología, bases de datos y dependencias mediante un único comando en **Docker Compose** sin requerir configuraciones locales manuales.
 
@@ -24,7 +24,7 @@ El orquestador levantará los servicios de forma ordenada gracias a los `healthc
 
 ---
 
-## 2. Suites de Tests Automatizados (Pytest) 🧪
+## 2. Suites de Tests Automatizados (Pytest)
 
 El proyecto incluye suites de pruebas exhaustivas escritas con `pytest` y bases de datos en memoria (SQLite in-memory y Mocks de RabbitMQ) para verificar la **lógica crítica**: transiciones de estado, validaciones de negocio y garantía de idempotencia.
 
@@ -54,7 +54,7 @@ docker compose exec inventory-worker pytest -v
 
 ---
 
-## 3. Decisiones de Arquitectura y Trade-Offs Asumidos ⚖️
+## 3. Decisiones de Arquitectura y Trade-Offs Asumidos 
 
 Toda decisión arquitectónica involucra compromisos de diseño según el contexto y el tiempo de entrega del proyecto:
 
@@ -72,7 +72,7 @@ Toda decisión arquitectónica involucra compromisos de diseño según el contex
 
 ---
 
-## 4. Manejo Explícito de Fallos y Resiliencia 🛡️
+## 4. Manejo Explícito de Fallos y Resiliencia
 
 El sistema fue construido pensando en que las fallas operativas no son la excepción, sino la regla. Así se comporta ante incidentes en los nodos de la topología:
 
@@ -88,7 +88,7 @@ El sistema fue construido pensando en que las fallas operativas no son la excepc
 
 ---
 
-## 5. Garantía de Idempotencia y Concurrencia (Bloqueo Pesimista) 🔒
+## 5. Garantía de Idempotencia y Concurrencia (Bloqueo Pesimista)
 
 En redes distribuidas, los mensajes de un broker pueden ser entregados dos veces ante reinicios o cortes intermitentes de red (*At-least-once delivery*). Para evitar distorsiones como el doble descuento de inventario para un único pedido, el sistema implementa tres barreras blindadas:
 
@@ -98,7 +98,7 @@ En redes distribuidas, los mensajes de un broker pueden ser entregados dos veces
 
 ---
 
-## 6. Sección: "Qué Haría Distinto Con Más Tiempo" 💡
+## 6. Sección: "Qué Haría Distinto Con Más Tiempo"
 
 Para escalar este sistema de un MVP robusto hacia una plataforma Enterprise apta para soportar tráfico masivo y continuo (ej. un Black Friday en e-commerce), adoptaría las siguientes evoluciones arquitectónicas:
 
